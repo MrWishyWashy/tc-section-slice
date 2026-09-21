@@ -275,8 +275,12 @@
       return n; // "surface" - true face normal, free angle
     }
 
-    // Build the two parallel section planes that bound the slab.
-    function buildPlanes() {
+    // Build the two parallel section planes that bound the slab. If we already
+    // have a pair (reuseIds = [nearId, farId]) we stamp those ids onto the new
+    // objects so the viewer MOVES the existing planes in place instead of
+    // creating new ones - moving in place doesn't rebuild the clip state, so it
+    // doesn't flash. (Removing a plane does rebuild it, which is the flicker.)
+    function buildPlanes(reuseIds) {
       if (!pick) return null;
 
       const N = chosenNormal();
@@ -303,15 +307,22 @@
         directionX: N.x * inv, directionY: N.y * inv, directionZ: N.z * inv,
         controlsVisible: controls
       };
+
+      // Reuse existing ids so the viewer updates these planes in place.
+      if (reuseIds && reuseIds.length === 2) {
+        planeNear.id = reuseIds[0];
+        planeFar.id = reuseIds[1];
+      }
       return [planeNear, planeFar];
     }
 
-    // Move the slab. There is no in-place "update plane" call in the API, so we
-    // ADD the new pair FIRST and only then REMOVE the old pair. That guarantees
-    // the model is always clipped by at least one pair - if we removed first,
-    // there would be a frame with zero planes and the whole model would flash
-    // into view (the flicker). An in-flight guard coalesces rapid slider input
-    // so calls can't overlap.
+    // Move the slab. We pass the two planes' existing ids back to
+    // addSectionPlane so the viewer MOVES them in place rather than making new
+    // ones - that avoids the clip-state rebuild that causes the flash. We only
+    // ever call removeSectionPlanes as a fallback: if the viewer ignored the
+    // ids and handed us back brand-new ones (different ids, or an extra pair),
+    // we clean up the stale ones. In the normal case nothing is removed while
+    // dragging, so there's no flicker. An in-flight guard coalesces rapid input.
     async function runUpdate() {
       if (!API || !pick) return;
       if (updating) { dirty = true; return; }
@@ -319,15 +330,30 @@
       try {
         do {
           dirty = false;
-          const planes = buildPlanes();
-          if (!planes) break;
           const oldIds = planeIds;
+          const planes = buildPlanes(oldIds.length === 2 ? oldIds : null);
+          if (!planes) break;
+
           const created = await API.viewer.addSectionPlane(planes);
-          planeIds = (created || []).map(p => p.id).filter(v => v != null);
-          if (oldIds.length) {
-            try { await API.viewer.removeSectionPlanes(oldIds); } catch (e) { /* stale ids ok */ }
+          const newIds = (created || []).map(p => p.id).filter(v => v != null);
+
+          // Did the viewer move our planes in place (same ids back)?
+          const reused =
+            oldIds.length === 2 &&
+            newIds.length === 2 &&
+            oldIds.every(id => newIds.includes(id));
+
+          if (oldIds.length && !reused) {
+            // Fallback: viewer made new planes, so remove the old pair. This is
+            // the only path that can flash, and only when in-place isn't honoured.
+            const staleIds = oldIds.filter(id => !newIds.includes(id));
+            if (staleIds.length) {
+              try { await API.viewer.removeSectionPlanes(staleIds); } catch (e) { /* ignore */ }
+            }
           }
-          console.log("[SectionSlice] planes ->", planes, "ids ->", planeIds);
+
+          planeIds = newIds.length ? newIds : oldIds;
+          console.log("[SectionSlice] update ->", { reused, oldIds, newIds });
         } while (dirty);
       } catch (err) {
         console.error(err);
