@@ -225,6 +225,7 @@
     let planeIds = [];       // ids of the TWO planes we created (only we touch these)
     let updating = false;    // in-flight guard so remove/add can't race
     let dirty = false;       // coalesce rapid slider input into the next update
+    let pickArmed = false;   // true only between pressing "Pick surface" and the next click
 
     const els = {
       pickBtn: document.getElementById("pickBtn"),
@@ -391,10 +392,17 @@
     }
 
     // ---- picking -----------------------------------------------------------
+    function setPickButton(armed) {
+      els.pickBtn.textContent = armed ? "Click a surface… (cancel)" : "Pick surface";
+      els.pickBtn.classList.toggle("secondary", armed);
+    }
+
     async function startPicking() {
       if (!API) { setStatus("Not connected yet."); return; }
       try {
         await API.viewer.activateTool(PICK_TOOL, { snapTypes: SNAP_TYPES });
+        pickArmed = true;
+        setPickButton(true);
         setStatus("Click a surface in the 3D view to place the slice…");
       } catch (err) {
         console.error(err);
@@ -402,8 +410,21 @@
       }
     }
 
+    async function cancelPicking() {
+      pickArmed = false;
+      setPickButton(false);
+      try { await API.viewer.activateTool("reset"); } catch (e) { /* ignore */ }
+      setStatus(pick ? "Picking cancelled." : "Ready. Click 'Pick surface' to start.");
+    }
+
     function onPicked(detail) {
+      // Only the first click after pressing "Pick surface" counts. This stops a
+      // stray click later on from relocating the slice, even though the viewer
+      // may keep emitting onPicked events.
+      if (!pickArmed) return;
       if (!detail || !detail.position || !detail.normal) return;
+      pickArmed = false;
+      setPickButton(false);
       pick = {
         position: { x: detail.position.x, y: detail.position.y, z: detail.position.z },
         normal:   { x: detail.normal.x,   y: detail.normal.y,   z: detail.normal.z }
@@ -442,7 +463,7 @@
     }
 
     // ---- wiring ------------------------------------------------------------
-    els.pickBtn.addEventListener("click", startPicking);
+    els.pickBtn.addEventListener("click", () => { if (pickArmed) cancelPicking(); else startPicking(); });
     els.recutBtn.addEventListener("click", () => { if (pick) runUpdate(); else startPicking(); });
     els.clearBtn.addEventListener("click", async () => {
       await clearSlice(false);
