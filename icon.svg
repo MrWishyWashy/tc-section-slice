@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <!-- building outline -->
+  <rect x="3.5" y="4.5" width="17" height="15" rx="1" opacity="0.5"/>
+  <!-- the slice: two parallel planes a gap apart -->
+  <line x1="9.5" y1="3" x2="9.5" y2="21"/>
+  <line x1="13" y1="3" x2="13" y2="21"/>
+  <!-- travel arrows -->
+  <path d="M6.5 12 H4"/>
+  <path d="M5.2 10.8 L4 12 L5.2 13.2"/>
+  <path d="M16 12 H18.5"/>
+  <path d="M17.3 10.8 L18.5 12 L17.3 13.2"/>
+</svg>

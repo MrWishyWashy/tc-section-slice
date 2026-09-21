@@ -1,0 +1,8 @@
+{
+  "title": "Section Slice",
+  "icon": "https://mrwishywashy.github.io/tc-section-slice/icon.svg",
+  "url": "https://mrwishywashy.github.io/tc-section-slice/",
+  "description": "Click a surface to cut a slice (two parallel section planes a set distance apart) through the model, then slide it back and forth like an MRI to expose clashes and uncoordinated areas.",
+  "enabled": true,
+  "extensionType": ["3dviewer"]
+}

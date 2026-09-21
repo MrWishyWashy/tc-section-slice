@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Section Slice</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #1f1f1f;
+      --panel: #2a2a2a;
+      --text: #f2f2f2;
+      --muted: #bdbdbd;
+      --accent: #4ea1ff;
+      --border: #444;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .wrap {
+      padding: 16px;
+      max-width: 420px;
+    }
+
+    h1 { margin: 0 0 8px 0; font-size: 20px; }
+    h2 { margin: 0 0 8px 0; font-size: 14px; }
+
+    p {
+      margin: 0 0 14px 0;
+      color: var(--muted);
+      line-height: 1.4;
+      font-size: 13px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .row { margin-bottom: 12px; }
+    .row:last-child { margin-bottom: 0; }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    input[type="range"] { width: 100%; }
+
+    input[type="number"], select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #111;
+      color: var(--text);
+    }
+
+    button {
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+    }
+
+    button.secondary { background: #555; }
+    button.full { width: 100%; }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .travel-row {
+      display: grid;
+      grid-template-columns: 36px 1fr 84px 36px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .travel-row button {
+      padding: 8px 0;
+      font-size: 15px;
+      line-height: 1;
+    }
+
+    .checkline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .checkline input { width: auto; }
+
+    .status {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 10px;
+      min-height: 16px;
+    }
+
+    .small { font-size: 12px; color: var(--muted); }
+
+    .hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Section Slice</h1>
+    <p>
+      Cut a slab of adjustable thickness through the model, then slide it back
+      and forth like an MRI to expose clashing or uncoordinated areas.
+      Pick a surface to set where the slice sits and which way it faces.
+    </p>
+
+    <div class="card">
+      <button id="pickBtn" class="full">Pick surface</button>
+      <div class="hint" id="pickReadout">No surface picked yet.</div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <label for="orientation">Slice direction</label>
+        <select id="orientation">
+          <option value="surface">Clicked surface (free angle)</option>
+          <option value="auto">Snap to nearest axis</option>
+          <option value="x">X axis</option>
+          <option value="y">Y axis</option>
+          <option value="z">Z axis (vertical / plan slice)</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label for="thickness">
+          <span>Slice thickness</span>
+          <span id="thicknessValue">1.00 m</span>
+        </label>
+        <input id="thickness" type="range" min="0.05" max="10" step="0.05" value="1">
+      </div>
+
+      <div class="row">
+        <label for="travel">
+          <span>Travel (distance from pick point)</span>
+        </label>
+        <div class="travel-row">
+          <button id="stepBack" class="secondary" title="Step back one slice thickness">&#9664;</button>
+          <input id="travel" type="range" min="-50" max="50" step="0.05" value="0">
+          <input id="travelNum" type="number" step="0.05" value="0">
+          <button id="stepFwd" class="secondary" title="Step forward one slice thickness">&#9654;</button>
+        </div>
+        <div class="hint">
+          The step arrows jump by exactly one slice thickness, so you can walk
+          through the building slab by slab. Range is &plusmn;50 m from the pick
+          point &mdash; type a larger number in the box if you need to go further.
+        </div>
+      </div>
+
+      <div class="checkline">
+        <input type="checkbox" id="invert">
+        <label for="invert" style="margin:0">Invert (if the wrong side disappears, tick this)</label>
+      </div>
+
+      <div class="checkline">
+        <input type="checkbox" id="handles">
+        <label for="handles" style="margin:0">Show drag handles on the planes</label>
+      </div>
+
+      <div class="buttons">
+        <button id="clearBtn" class="secondary">Clear slice</button>
+        <button id="recutBtn">Re-cut here</button>
+      </div>
+
+      <div class="status" id="status">Connecting to Trimble Connect&hellip;</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as Extensions from "https://cdn.jsdelivr.net/npm/trimble-connect-workspace-api@0.3.34/+esm";
+
+    // ---------------------------------------------------------------------
+    // Units. World coordinates coming back from a pick (and from getCamera)
+    // are in METRES, but SectionPlane positions are in MILLIMETRES - this is
+    // stated explicitly in the SDK's ViewAPI.d.ts (".. position in millimeters").
+    // Everything the user types/drags here is in metres, so we scale by 1000
+    // when we build the planes.
+    //
+    // >>> IF THE SLICE APPEARS 1000x TOO FAR AWAY (model vanishes / slab off in
+    //     space), set M_TO_MM = 1 and re-test. The pick position is logged to
+    //     the console on every pick so you can sanity-check the magnitude.
+    // ---------------------------------------------------------------------
+    const M_TO_MM = 1000;
+
+    // "picking" tool + snap types are real values from the SDK's TOOLS constant
+    // (dist/es bundle: TOOLS=[...,"clipPlane","verticalClipPlane","picking"],
+    //  snap types = ["edge","point","surface"]).
+    const PICK_TOOL = "picking";
+    const SNAP_TYPES = ["surface", "edge", "point"];
+
+    let API = null;
+    let pick = null;         // { position:{x,y,z} metres, normal:{x,y,z} unit }
+    let planeIds = [];       // ids of the TWO planes we created (only we touch these)
+    let updating = false;    // in-flight guard so remove/add can't race
+    let dirty = false;       // coalesce rapid slider input into the next update
+
+    const els = {
+      pickBtn: document.getElementById("pickBtn"),
+      pickReadout: document.getElementById("pickReadout"),
+      orientation: document.getElementById("orientation"),
+      thickness: document.getElementById("thickness"),
+      thicknessValue: document.getElementById("thicknessValue"),
+      travel: document.getElementById("travel"),
+      travelNum: document.getElementById("travelNum"),
+      stepBack: document.getElementById("stepBack"),
+      stepFwd: document.getElementById("stepFwd"),
+      invert: document.getElementById("invert"),
+      handles: document.getElementById("handles"),
+      clearBtn: document.getElementById("clearBtn"),
+      recutBtn: document.getElementById("recutBtn"),
+      status: document.getElementById("status")
+    };
+
+    function setStatus(msg) {
+      els.status.textContent = msg;
+      if (API?.extension?.setStatusMessage) {
+        API.extension.setStatusMessage(msg).catch(() => {});
+      }
+    }
+
+    function normalize(v) {
+      const L = Math.hypot(v.x, v.y, v.z) || 1;
+      return { x: v.x / L, y: v.y / L, z: v.z / L };
+    }
+
+    // The unit normal the slice is cut along, given the chosen direction mode.
+    function chosenNormal() {
+      const mode = els.orientation.value;
+      if (mode === "x") return { x: 1, y: 0, z: 0 };
+      if (mode === "y") return { x: 0, y: 1, z: 0 };
+      if (mode === "z") return { x: 0, y: 0, z: 1 };
+      if (!pick) return { x: 0, y: 0, z: 1 };
+
+      const n = normalize(pick.normal);
+      if (mode === "auto") {
+        // Snap the picked normal to whichever world axis it is closest to -
+        // keeps the plane handles tidy and the slab square to the building.
+        const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
+        if (ax >= ay && ax >= az) return { x: Math.sign(n.x) || 1, y: 0, z: 0 };
+        if (ay >= ax && ay >= az) return { x: 0, y: Math.sign(n.y) || 1, z: 0 };
+        return { x: 0, y: 0, z: Math.sign(n.z) || 1 };
+      }
+      return n; // "surface" - true face normal, free angle
+    }
+
+    // Build the two parallel section planes that bound the slab.
+    function buildPlanes() {
+      if (!pick) return null;
+
+      const N = chosenNormal();
+      const T = Math.max(0.01, Number(els.thickness.value)); // metres
+      const D = Number(els.travel.value) || 0;               // metres
+      const P = pick.position;                               // metres
+      const inv = els.invert.checked ? -1 : 1;
+      const controls = els.handles.checked;
+
+      // Near face at P + N*D, far face one thickness further along N.
+      const near = { x: P.x + N.x * D,       y: P.y + N.y * D,       z: P.z + N.z * D };
+      const far  = { x: P.x + N.x * (D + T), y: P.y + N.y * (D + T), z: P.z + N.z * (D + T) };
+
+      // The two planes carry OPPOSITE normals so the kept half-spaces overlap
+      // only inside the slab. `invert` flips which half each plane keeps, in
+      // case Trimble's clip convention is the reverse of what we assumed.
+      const planeNear = {
+        positionX: near.x * M_TO_MM, positionY: near.y * M_TO_MM, positionZ: near.z * M_TO_MM,
+        directionX: -N.x * inv, directionY: -N.y * inv, directionZ: -N.z * inv,
+        controlsVisible: controls
+      };
+      const planeFar = {
+        positionX: far.x * M_TO_MM, positionY: far.y * M_TO_MM, positionZ: far.z * M_TO_MM,
+        directionX: N.x * inv, directionY: N.y * inv, directionZ: N.z * inv,
+        controlsVisible: controls
+      };
+      return [planeNear, planeFar];
+    }
+
+    // Remove our previous pair and add the freshly computed pair. An in-flight
+    // guard coalesces rapid slider input so remove/add calls can't overlap.
+    async function runUpdate() {
+      if (!API || !pick) return;
+      if (updating) { dirty = true; return; }
+      updating = true;
+      try {
+        do {
+          dirty = false;
+          const planes = buildPlanes();
+          if (!planes) break;
+          if (planeIds.length) {
+            try { await API.viewer.removeSectionPlanes(planeIds); } catch (e) { /* stale ids ok */ }
+            planeIds = [];
+          }
+          const created = await API.viewer.addSectionPlane(planes);
+          planeIds = (created || []).map(p => p.id).filter(v => v != null);
+          console.log("[SectionSlice] planes ->", planes, "ids ->", planeIds);
+        } while (dirty);
+      } catch (err) {
+        console.error(err);
+        setStatus("Couldn't update the slice - check the browser console.");
+      } finally {
+        updating = false;
+      }
+    }
+
+    async function clearSlice(keepPick) {
+      if (planeIds.length) {
+        try { await API.viewer.removeSectionPlanes(planeIds); } catch (e) { /* ignore */ }
+        planeIds = [];
+      }
+      if (!keepPick) {
+        pick = null;
+        els.pickReadout.textContent = "No surface picked yet.";
+      }
+    }
+
+    function syncLabels() {
+      els.thicknessValue.textContent = Number(els.thickness.value).toFixed(2) + " m";
+      els.travelNum.value = Number(els.travel.value).toFixed(2);
+    }
+
+    function step(dir) {
+      if (!pick) { setStatus("Pick a surface first."); return; }
+      const T = Math.max(0.01, Number(els.thickness.value));
+      const next = Number(els.travel.value) + dir * T;
+      els.travel.value = next;
+      // keep the slider from clamping away large manual travel
+      if (Number(els.travel.value) !== next) els.travel.value = next;
+      syncLabels();
+      runUpdate();
+    }
+
+    // ---- picking -----------------------------------------------------------
+    async function startPicking() {
+      if (!API) { setStatus("Not connected yet."); return; }
+      try {
+        await API.viewer.activateTool(PICK_TOOL, { snapTypes: SNAP_TYPES });
+        setStatus("Click a surface in the 3D view to place the slice…");
+      } catch (err) {
+        console.error(err);
+        setStatus("Couldn't start the pick tool - check the browser console.");
+      }
+    }
+
+    function onPicked(detail) {
+      if (!detail || !detail.position || !detail.normal) return;
+      pick = {
+        position: { x: detail.position.x, y: detail.position.y, z: detail.position.z },
+        normal:   { x: detail.normal.x,   y: detail.normal.y,   z: detail.normal.z }
+      };
+      console.log("[SectionSlice] picked ->", detail);
+      const p = pick.position;
+      els.pickReadout.textContent =
+        `Picked at ${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)} m.`;
+      els.travel.value = 0;
+      syncLabels();
+      // hand control back to normal navigation
+      API.viewer.activateTool("reset").catch(() => {});
+      setStatus(`Slicing a ${Number(els.thickness.value).toFixed(2)} m slab. Drag Travel to move it.`);
+      runUpdate();
+    }
+
+    // ---- connect -----------------------------------------------------------
+    async function connectApi() {
+      try {
+        API = await Extensions.connect(
+          window.parent,
+          (event, args) => {
+            if (event === "viewer.onPicked") {
+              onPicked(args?.data);
+            } else if (event === "extension.command") {
+              console.log("[SectionSlice] command:", args?.data);
+            }
+          },
+          30000
+        );
+        setStatus("Connected. Click 'Pick surface', then click a face in the model.");
+      } catch (err) {
+        console.error(err);
+        setStatus("Could not connect to Trimble Connect.");
+      }
+    }
+
+    // ---- wiring ------------------------------------------------------------
+    els.pickBtn.addEventListener("click", startPicking);
+    els.recutBtn.addEventListener("click", () => { if (pick) runUpdate(); else startPicking(); });
+    els.clearBtn.addEventListener("click", async () => {
+      await clearSlice(false);
+      setStatus("Slice cleared.");
+    });
+
+    els.thickness.addEventListener("input", () => { syncLabels(); runUpdate(); });
+    els.travel.addEventListener("input", () => { syncLabels(); runUpdate(); });
+    els.travelNum.addEventListener("input", () => {
+      const v = Number(els.travelNum.value);
+      if (!Number.isNaN(v)) { els.travel.value = v; runUpdate(); }
+    });
+    els.orientation.addEventListener("change", runUpdate);
+    els.invert.addEventListener("change", runUpdate);
+    els.handles.addEventListener("change", runUpdate);
+    els.stepBack.addEventListener("click", () => step(-1));
+    els.stepFwd.addEventListener("click", () => step(1));
+
+    syncLabels();
+    connectApi();
+  </script>
+</body>
+</html>
