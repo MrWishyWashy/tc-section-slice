@@ -306,8 +306,12 @@
       return [planeNear, planeFar];
     }
 
-    // Remove our previous pair and add the freshly computed pair. An in-flight
-    // guard coalesces rapid slider input so remove/add calls can't overlap.
+    // Move the slab. There is no in-place "update plane" call in the API, so we
+    // ADD the new pair FIRST and only then REMOVE the old pair. That guarantees
+    // the model is always clipped by at least one pair - if we removed first,
+    // there would be a frame with zero planes and the whole model would flash
+    // into view (the flicker). An in-flight guard coalesces rapid slider input
+    // so calls can't overlap.
     async function runUpdate() {
       if (!API || !pick) return;
       if (updating) { dirty = true; return; }
@@ -317,12 +321,12 @@
           dirty = false;
           const planes = buildPlanes();
           if (!planes) break;
-          if (planeIds.length) {
-            try { await API.viewer.removeSectionPlanes(planeIds); } catch (e) { /* stale ids ok */ }
-            planeIds = [];
-          }
+          const oldIds = planeIds;
           const created = await API.viewer.addSectionPlane(planes);
           planeIds = (created || []).map(p => p.id).filter(v => v != null);
+          if (oldIds.length) {
+            try { await API.viewer.removeSectionPlanes(oldIds); } catch (e) { /* stale ids ok */ }
+          }
           console.log("[SectionSlice] planes ->", planes, "ids ->", planeIds);
         } while (dirty);
       } catch (err) {
